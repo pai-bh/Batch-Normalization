@@ -294,7 +294,8 @@ We have observed this empirically in initial experiments, where the model blows 
 
 The issue with the above approach is that the gradient descent optimization does not take into account the fact that the normalization takes place. 
 
-> ㅋㅋ
+> 위의 접근법의 문제는 경사 하강 최적화는 정규화가 일어난다는 사실을 고려하지 않는다는 것이다.
+
 
 <font color='red'>To address this issue, we would like to ensure that, for any parameter values, the network always produces activations with the desired distribution.  </font>
 
@@ -564,6 +565,7 @@ For this, once the network has been trained, we use the  normalization
 > 이를 위해 네트워크가 훈련되면 정규화를 사용합니다.
 
 ![bn3_math8](../pics/bn3_math8.png)
+
 using the population, rather than mini-batch, statistics.
 Neglecting 𝜖 , these normalized activations have the same
 mean 0 and variance 1 as during training
@@ -653,6 +655,7 @@ __Alg. 1__).
 > (편향의 역할은 β에 포함된다.)
 
 Thus, z = g(Wu + b) is replaced with
+
 ![](../pics/bn3_math10.png)
 
 where the BN transform is applied independently to each
@@ -739,6 +742,7 @@ its parameters.
 > 그러나 배치 정규화를 사용하면 도면층을 통한 역전달은 매개변수의 규모에 영향을 받지 않습니다
 
 Indeed, for a scalar a,
+
 ![](../pics/bn3_math11.png)
 
 and we can show that
@@ -819,3 +823,460 @@ reduce overfitting,  in a batch-normalized network we found
 that it can be either removed or reduced in strength.
 > 드롭아웃은 일반적으로 과적합을 줄이는 데 사용되는 반면, 
 > 배치 정규화된 네트워크에서 제거하거나 강도를 줄일 수 있다.
+
+## 4. Experiments
+### 4.1 Activations over time
+To verify the effects of internal covariate shift on training,
+and the ability of Batch Normalization to combat it,
+we considered the problem of predicting the digit class on
+the MNIST dataset
+> 내부 공변량 이동이 헉숩에 미치는 영향과 이를 해결하는 배치 정규화의 
+> 능력을 검증하기 위해 MNIST 데이터 세트의 숫자 클래스를 예측하는 문제를 고려했다.
+
+We used a very simple network, with a 28x28 binary image as input,
+and fully-connected hidden layers with 100 activations each.
+> 28x28 이진 이미지를 입력으로 하는 매우 간단한 네트워크와 
+> 각각 100개의 활성화로 완전히 연결된 은닉층을 사용했습니다.
+
+Each hidden layer computes y = g(Wu+b) with sigmoid  
+nonlinearity, and the weights W initialized to small random
+Gaussian values. 
+> 각 은닉 계층은 시그모이드 비선형성을 갖는 y = g(Wu+b)와 
+> 작은 무작위 가우스 값으로 초기화된 가중치 W를 계산한다.
+
+The last hidden layer is followed
+by a fully-connected layer with 10 activations (one per
+class) and cross-entropy loss
+> 마지막 은닉 레이어는 10개의 활성화(클래스당 1개)와 
+> 교차 엔트로피 손실로 완전히 연결된 레이어가 뒤따른다.
+
+We trained the network for
+50000 steps, with 60 examples per mini-batch. 
+We added Batch Normalization to each hidden layer 
+of the network, as in Sec. 3.1
+> 미니 배치당 60개의 예제를 사용하여 50000단계에 대해 네트워크를 훈련했다.
+> 3.1절과 같이 네트워크의 숨겨진 각 계층에 배치 정규화를 추가하였다.
+
+We were interested in the comparison between
+the baseline and batch-normalized networks, rather
+than achieving the state of the art performance on MNIST
+(which the described architecture does not).
+> 우리는 MNIST에서 최첨단 성능(설명된 아키텍처가 달성하지 못하는)을 달성하기보다는
+> 기준 네트워크와 배치 정규화된 네트워크 간의 비교에 관심이 있었다.
+
+![](../pics/bn4_1.png)
+
+Figure 1(a) shows the fraction of correct predictions
+by the two networks on held-out test data, as training
+progresses
+> 그림 1(a)는 홀드-아웃 테스트에서 두 네트워크에 의한 정확한 
+> 예측 비율을 보여줍니다. 교육이 진행됨에 따라 데이터
+
+The batch-normalized network enjoys the
+higher test accuracy. To investigate why, we studied inputs
+to the sigmoid, in the original network N and batch-normalized
+network  BN (Alg. 2) over the course of training.
+
+
+> 배치 정규화된 네트워크는 테스트 정확도가 높습니다. 
+> 이유를 조사하기 위해 훈련 과정에 걸쳐 원래 네트워크 N과
+> 배치 정규화된 네트워크 BN(Alg. 2)에서 시그모이드에 대한 입력을 연구했다.
+
+ 
+In Fig. 1(b,c) we show, for one typical activation from  the 
+last hidden layer of each network, how its distribution evolves
+> 그림 1(b,c)에서는 각 네트워크의 마지막 은닉 계층에서 하나의
+> 일반적인 활성화에 대해 분포가 어떻게 진화하는지 보여준다.
+
+The distributions in the original network
+change significantly over time, both in their mean and
+the variance, which complicates the training of the subsequent
+layers
+> 원래 네트워크의 분포는 평균과 분산 모두에서 시간이 지남에 따라 크게 변화하며,
+> 이는 후속 계층의 훈련을 복잡하게 한다.
+
+In contrast, the distributions in the batchnormalized
+network are much more stable as training progresses,
+which aids the training.
+> 대조적으로, 배치 정규화된 네트워크의 분포는 다음과 같이 훨씬 더 안정적이다.
+> 훈련의 진행, 훈련에 도움이 된다.
+
+### 4.2. ImageNet classification
+We applied Batch Normalization to a new variant of the
+Inception network  trained on the ImageNet classification task.
+> 우리는 ImageNet 분류 작업에 대해 훈련된 새로운 변형
+> 인셉션 네트워크에 배치 정규화를 적용했다.
+
+The network has a large number of convolutional and
+pooling layers, with a softmax layer to predict the image
+class, out of 1000 possibilities.
+> 네트워크에는 이미지 클래스를 예측하는 소프트맥스 레이어와 함께
+> 1000개의 가능성 중 많은 수의 컨볼루션 및 풀링 레이어가 있다.
+
+Convolutional layers use ReLU as the nonlinearity
+> 컨볼루션 레이어는 비선형성으로 ReLU를 사용합니다.
+
+The main difference to the network
+described in is that the 5 * 5
+convolutional layers are replaced by two consecutive layers
+of 3 * 3 convolutions with up to 128 filters
+> 앞에서 설명한 네트워크와의 주요 차이점은 5 * 5 컨볼루션 레이어가 최대 
+> 128개의 필터가 있는 3 * 3 컨볼루션 레이어의 두 개의 연속
+> 레이어로 대체된다는 것입니다.
+
+The network contains 13.6 *10^6 parameters, and, other than 
+the top softmax layer, has no fully-connected layers.
+More details are given the Appendix.
+> 네트워크에는 13.6 *10^6 파라미터가 포함되며, 상단 소프트맥스
+> 레이어 외에 완전히 연결된 레이어가 없습니다.
+> 자세한 내용은 부록을 참조하세요.
+
+We refer to this model
+as Inception in the rest of the text. The model was trained
+using a version of Stochastic Gradient Descent with momentum(
+Sutskever et al., 2013), using themini-batch size
+of 32.
+
+> 우리는 이 모델을 본문의 나머지 부분에서 인셉션이라고 부릅니다.
+> 모델은 32의 미니 배치 크기를 사용하여 모멘텀이 있는 확률적
+> 경사 강하 버전을 사용하여 훈련되었다.
+
+The trainingwas performed using a large-scale, distributed
+architecture (similar to (Dean et al., 2012)). All
+networks are evaluated as training progresses by computing
+the validation accuracy @1, i.e. the probability of
+predicting the correct label out of 1000 possibilities, on
+a held-out set, using a single crop per image.
+> 훈련은 대규모 분산 아키텍처를 사용하여 수행되었다(Dean et al., 2012). 
+> 모든 네트워크는 검증 정확도 @1, 즉 이미지당 단일 크롭을 사용하여 홀드아웃 
+> 세트에서 1000개의 가능성 중 올바른 레이블을 
+> 예측할 확률을 계산함으로써 교육 진행률로 평가된다.
+
+In our experiments, we evaluated several modifications
+of Inception with Batch Normalization. In all cases, Batch
+Normalization was applied to the input of each nonlinearity,
+in a convolutional way, as described in section 3.2,
+while keeping the rest of the architecture constant.
+> 실험에서 배치 정규화를 사용한 인셉션의 몇 가지 수정 사항을 평가했다.
+> 모든 경우에, 배치 정규화는 아키텍처의 나머지를 일정하게 유지하면서, 
+> 섹션 3.2에서 설명된 대로, 컨볼루션 방식으로, 각 비선형성의 입력에 적용되었습니다.
+
+#### 4.2.1 Accelerating BN Networks
+Simply adding Batch Normalization to a network does not
+take full advantage of our method. To do so, we further
+changed the network and its training parameters, as follows:
+> 단순히 배치 정규화를 네트워크에 추가하는 것은 우리의 방법을 최대한 활용하지 않는다.
+> 이를 위해 다음과 같이 네트워크와 교육 매개 변수를 추가로 변경했다.
+
+Increase learning rate. In a batch-normalized model,
+we have been able to achieve a training speedup from
+higher learning rates, with no ill side effects (Sec. 3.3).
+> 학습률을 높입니다. 배치 정규화 모델에서, 우리는 부작용 
+> 없이 더 높은 학습 속도에서 훈련 속도를 높일 수 있었다(3.3항).
+
+Remove Dropout. As described in Sec. 3.4, Batch Normalization
+fulfills some of the same goals as Dropout. Removing
+Dropout from Modified BN-Inception speeds up
+training, without increasing overfitting.
+> 드롭아웃을 제거합니다. 3.4항에서 설명한 바와 같이 배치 정규화는 드롭아웃과 
+> 동일한 목표를 달성합니다. 수정된 BN-인셉션에서 드롭아웃을 제거하면 
+> 과적합이 증가하지 않고 교육 속도가 빨라집니다.
+
+Reduce the L2 weight regularization. While in Inception
+an L2 loss on the model parameters controls overfitting,
+in Modified BN-Inception the weight of this loss is
+reduced by a factor of 5. We find that this improves the
+accuracy on the held-out validation data.
+> L2 가중치 규제를 줄입니다. Inception에서 모델 매개변수의 L2 손실이
+> 과적합을 제어하는 반면, Modified BN-Inception에서는 
+> 이 손실의 무게가 5배만큼 감소한다. 우리는 이것이 보류된 검증 데이터의 
+> 정확도를 향상시킨다는 것을 발견했다.
+
+Accelerate the learning rate decay. In training Inception,
+learning rate was decayed exponentially. Because
+our network trains faster than Inception, we lower the
+learning rate 6 times faster.
+> 학습 속도 저하를 가속화합니다. 인셉션 훈련에서 학습 속도는 기하급수적으로 
+> 감소했습니다. 우리 네트워크는 인셉션보다 더 빨리 훈련하기 때문에, 
+> 우리는 학습 속도를 6배 더 빠르게 낮춥니다.
+
+Remove Local Response Normalization While Inception
+and other networks (Srivastava et al., 2014) benefit
+from it, we found that with Batch Normalization it is not
+necessary.
+> 로컬 응답 정규화 제거 인셉션 및 기타 네트워크(Srivastava 등, 2014)가 
+> 이점을 얻는 동안 배치 정규화를 사용할 필요가 없다는 것을 발견했다.
+
+Shuffle training examples more thoroughly. We enabled
+within-shard shuffling of the training data, which prevents
+the same examples from always appearing in a mini-batch
+together. 
+> 교육 예제를 더 철저히 섞습니다. 우리는 훈련 데이터의 샤드 
+> 내 혼합을 활성화하여 동일한 예가 항상 미니 배치에 함께 나타나는 것을 방지했다.
+
+
+This led to about 1% improvements in the validation
+accuracy, which is consistent with the view of
+Batch Normalization as a regularizer (Sec. 3.4): the randomization
+inherent in our method should be most beneficial
+when it affects an example differently each time it is
+seen.
+> 이는 검증 정확도가 약 1% 향상으로 이어졌는데, 이는 배치 정규화(3.4항)의 
+> 관점과 일치한다. 우리의 방법에 내재된 무작위화는 보일 때마다 예에 다른 
+> 영향을 미칠 때 가장 유리해야 한다.
+
+Reduce the photometric distortions. Because batchnormalized
+networks train faster and observe each training
+example fewer times, we let the trainer focus on more
+“real” images by distorting them less.
+> 측광학적 왜곡을 줄입니다. 배치 정규화된 네트워크는 더 빠르게 훈련하고 
+> 각 훈련 예제를 더 적게 관찰하기 때문에, 우리는 트레이너가
+> 더 적은 왜곡을 통해 더 많은 "실제" 이미지에 집중할 수 있도록 한다.
+
+![](../pics/bn4_2.png)
+
+#### 4.2.2 Single-Network Classification
+
+We evaluated the following networks, all trained on the
+LSVRC2012 training data, and tested on the validation data:
+> 우리는 LSVRC2012 훈련 데이터에 대해 훈련된 다음 네트워크를 평가하고 
+> 검증 데이터에 대해 테스트했다.
+
+Inception: the network described at the beginning of
+Section 4.2, trained with the initial learning rate of 0.0015.
+BN-Baseline: Same as Inception with Batch Normalization
+before each nonlinearity.
+> 인셉션: 섹션 4.2의 시작 부분에 기술된 네트워크, 0.0015의 초기 학습률로 훈련되었다.
+> BN-기준: 각 비선형성 이전의 배치 정규화를 사용한 인셉션과 동일합니다.
+
+BN-x5: Inception with Batch Normalization and the
+modifications in Sec. 4.2.1. The initial learning rate was
+increased by a factor of 5, to 0.0075. The same learning
+rate increase with original Inception caused the model parameters
+to reach machine infinity.
+> BN-x5: 배치 정규화를 사용한 인셉션 및 4.2.1항의 수정사항.
+> 초기 학습률은 0.0075로 5배 증가했다. 원래의 인셉션과 동일한 학습 속도 증가는
+> 모델 매개 변수가 기계 무한대에 도달하도록 야기했다.
+
+BN-x30: Like BN-x5, but with the initial learning rate
+0.045 (30 times that of Inception).
+> BN-x30: BN-x5와 비슷하지만 초기 학습률은 0.045(인셉션의 30배)입니다.
+
+BN-x5-Sigmoid: Like BN-x5, but with sigmoid nonlinearity
+g(t) = $\frac{1}{1+exp(−x)}$ instead of ReLU. We also attempted
+to train the original Inception with sigmoid, but
+the model remained at the accuracy equivalent to chance.
+
+> BN-x5-시그모이드: BN-x5처럼, 하지만 ReLU 대신 시그모이드 비선형성 
+> g(t) = \frac{1}{1+expectx)}$인 경우. 우리는 시그모이드로 원래 
+> 인셉션을 훈련시키려 했지만 모델은 우연에 상응하는 정확도로 유지되었다.
+
+In Figure 2, we show the validation accuracy of the
+networks, as a function of the number of training steps.
+Inception reached the accuracy of 72.2% after 31   106
+training steps. The Figure 3 shows, for each network,
+the number of training steps required to reach the same
+72.2% accuracy, as well as the maximum validation accuracy
+reached by the network and the number of steps to
+reach it.
+> 그림 2에서는 훈련 단계 수의 함수로서 네트워크의 검증 정확도를 보여준다.
+> 인셉션은 31*10^6 훈련 단계 후 72.2%의 정확도에 도달했다.
+> 그림 3은 각 네트워크에 대해 동일한 72.2%의 정확도에 도달하는 데 필요한
+> 훈련 단계 수와 네트워크가 도달하는 최대 유효성 검사 정확도 및 도달 단계 수를 보여준다.
+
+By only using Batch Normalization (BN-Baseline), we
+match the accuracy of Inception in less than half the number
+of training steps. By applying the modifications in
+Sec. 4.2.1, we significantly increase the training speed of
+the network. 
+> BN-Baseline(Batch Normalization)만 사용하여 교육 단계 수의 절반 미만으로
+> Inception의 정확도와 일치한다.
+> 4.2.1항의 수정 사항을 적용하여 네트워크의 훈련 속도를 크게 높인다.
+
+BN-x5 needs 14 times fewer steps than Inception
+to reach the 72.2% accuracy. Interestingly, increasing
+the learning rate further (BN-x30) causes the
+model to train somewhat slower initially, but allows it to
+reach a higher final accuracy. It reaches 74.8%after 6*10^6
+steps, i.e. 5 times fewer steps than required by Inception
+to reach 72.2%.
+> BN-x5는 72.2%의 정확도에 도달하기 위해 인셉션보다 14배 적은 단계가 필요하다. 
+> 흥미롭게도 학습 속도를 더 높이면(BN-x30) 모델이 처음에는 다소 느리게 훈련되지만 
+> 더 높은 최종 정확도에 도달할 수 있다. 6*10^6 단계 후 74.8%에 도달한다.
+> 즉, 72.2%에 도달하기 위해 인셉션이 요구하는 단계보다 5배 적은 단계이다.
+
+We also verified that the reduction in internal covariate
+shift allows deep networks with Batch Normalization
+to be trained when sigmoid is used as the nonlinearity,
+despite the well-known difficulty of training such networks.
+Indeed, BN-x5-Sigmoid achieves the accuracy of 69.8%.
+> 또한 내부 공변량 이동의 감소는 그러한 네트워크를 훈련하는 데 잘 알려진 어려움에도 
+> 불구하고 Sigmoid를 비선형성으로 사용할 때 배치 정규화를 통해 심층 네트워크를 
+> 훈련할 수 있음을 검증했다.
+> 실제로 BN-x5-시그모이드는 69.8%의 정확도를 달성한다.
+
+Without Batch Normalization, Inception with sigmoid
+never achieves better than 1/1000 accuracy.
+> 배치 정규화 없이는 시그모이드가 있는 인셉션은 1000분의 1 이상의 
+> 정확도를 얻을 수 없습니다.
+
+![](../pics/bn4_3.png)
+
+#### 4.2.3 Ensemble Classification
+
+The current reported best results on the ImageNet Large
+Scale Visual Recognition Competition are reached by the
+Deep Image ensemble of traditional models (Wu et al.,
+2015) and the ensemble model of (He et al., 2015). The
+latter reports the top-5 error of 4.94%, as evaluated by the
+ILSVRC server. Here we report a top-5 validation error of
+4.9%, and test error of 4.82% (according to the ILSVRC
+server). This improves upon the previous best result, and
+exceeds the estimated accuracy of human raters according
+to (Russakovsky et al., 2014).
+
+> ImageNet 대규모 시각적 인식 대회에서 현재 보고된 
+> 최고 결과는 기존 모델의 딥 이미지 앙상블에 의해 달성되었다(Wu 등).
+> 후자는 ILSVRC 서버가 평가한 상위 5개 오류를 4.94%로 보고한다.
+> 여기서는 상위 5개 검증 오류 4.9%와 테스트 오류 4.82%를 보고한다(ILSVRC 서버에 따르면).
+> 이것은 이전의 최고 결과를 개선하고 (Russakovsky 등, 2014)에 따라
+> 인간 평가자의 추정 정확도를 초과한다
+
+Each network achieved its maximum
+accuracy after about 6 * 10^6 training steps. The ensemble
+prediction was based on the arithmetic average of class
+probabilities predicted by the constituent networks. The
+details of ensemble and multicrop inference are similar to
+(Szegedy et al., 2014).
+> 각 네트워크는 약 6 * 10^6 훈련 단계를 거친 후 최대 정확도를 달성했다. 
+> 앙상블 예측은 구성 네트워크가 예측한 클래스 확률의 산술 평균을 기반으로 했습니다. 
+> 앙상블과 멀티 크롭 추론의 세부 사항은 (Szegedy 등, 2014)와 유사하다.
+
+We demonstrate in Fig. 4 that batch normalization allows
+us to set new state-of-the-art by a healthy margin on
+the ImageNet classification challenge benchmarks.
+> 우리는 그림 4에서 배치 정규화를 통해 ImageNet 분류 챌린지 벤치마크에서 
+> 새로운 최첨단 기술을 건강한 차이로 설정할 수 있음을 보여준다.
+
+---
+## 5. Conclusion
+We have presented a novel mechanism for dramatically
+accelerating the training of deep networks. It is based on
+the premise that covariate shift, which is known to complicate
+the training of machine learning systems, also applies to 
+sub-networks and layers, and removing it from
+internal activations of the network may aid in training.
+> 우리는 심층 네트워크의 훈련을 획기적으로 가속화하기 위한 새로운 메커니즘을 제시했다.
+> 머신러닝 시스템 훈련을 복잡하게 하는 것으로 알려진 공변량 시프트가 하위 네트워크와
+> 계층에도 적용된다는 전제를 바탕으로 네트워크의 내부 활성화에서 이를 제거하면
+> 훈련에 도움이 될 수 있다.
+
+Our proposed method draws its power from normalizing
+activations, and from incorporating this normalization in
+the network architecture itself. This ensures that the normalization
+is appropriately handled by any optimization
+method that is being used to train the network
+> 우리가 제안한 방법은 활성화를 정규화하고 네트워크 아키텍처 자체에
+> 이 정규화를 통합하는 것에서 힘을 얻는다. 이렇게 하면 네트워크를 교육하는 데
+> 사용되는 최적화 방법에 의해 정규화가 적절하게 처리됩니다.
+
+
+To enable stochastic optimization methods commonly used in
+deep network training, we perform the normalization for
+each mini-batch, and backpropagate the gradients through
+the normalization parameter
+> 심층 네트워크 교육에 일반적으로 사용되는 확률적 최적화 방법을 활성화하기
+> 위해 각 미니 배치에 대해 정규화를 수행하고 정규화 매개 변수를 통해
+> 그레이디언트를 역 전파한다.
+
+Batch Normalization adds
+only two extra parameters per activation, and in doing so
+preserves the representation ability of the network. We
+presented an algorithm for constructing, training, and performing
+inference with batch-normalized networks. 
+> 배치 정규화는 활성화당 두 개의 매개 변수만 추가하며, 그렇게 함으로써 네트워크의
+> 표현 능력을 보존합니다. 배치 정규화된 네트워크를 사용하여 추론을 구성, 
+>  훈련 및 수행하기 위한 알고리즘을 제시했다.
+
+
+The resulting networks can be trained with saturating 
+nonlinearities,  are more tolerant to increased 
+training rates, and  often do not require Dropout for regularization.
+> 결과 네트워크는 포화 비선형성으로 훈련될 수 있고, 훈련 속도 증가에 
+> 더 내성이 있으며, 정규화를 위해 드롭아웃을 요구하지 않는다.
+
+---
+
+Merely adding Batch Normalization to a state-of-the art
+image classification model yields a substantial speedup
+in training. By further increasing the learning rates, removing
+Dropout, and applying other modifications afforded
+by Batch Normalization, we reach the previous
+state of the art with only a small fraction of training steps
+> 배치 정규화를 최첨단 이미지 분류 모델에 추가하는 것만으로도 훈련 속도가 크게 향상된다.
+> 학습률을 더욱 높이고, 드롭아웃을 제거하고, 배치 정규화에 의해 제공되는
+> 다른 수정 사항을 적용함으로써, 우리는 훈련 단계의 극히 일부만으로 이전 최신 
+> 기술에 도달한다.
+
+and then beat the state of the art in single-network image
+classification. Furthermore, by combining multiple models
+trained with Batch Normalization, we perform better than
+the best known system on ImageNet, by a significant margin.
+> 단일 네트워크 이미지 분류에서 최첨단 기술을 능가합니다. 또한 배치 정규화를 
+> 통해 훈련된 여러 모델을 결합함으로써 ImageNet에서 가장 잘 알려진 시스템보다 
+> 훨씬 우수한 성능을 발휘한다.
+
+---
+Interestingly, our method bears similarity to the standardization
+layer , though the two methods stem from very different goals,
+and perform  different tasks.
+> 흥미롭게도, 우리의 방법은 표준화 계층과 유사하지만, 
+> 두 가지 방법은 매우 다른 목표에서 비롯되고 다른 작업을 수행한다.
+
+The goal of Batch Normalization
+is to achieve a stable distribution of activation values
+throughout training, and in our experiments we apply it
+before the nonlinearity since that is where matching the
+first and second moments is more likely to result in a
+stable distribution
+> 배치 정규화의 목표는 훈련 내내 활성화 값의 안정적인 분포를 달성하는 것이며,
+> 실험에서 첫 번째와 두 번째 모멘트를 일치시키는 것이 안정적인 분포를
+> 얻을 가능성이 높기 때문에 비선형성 전에 적용한다.
+
+On the contrary, apply the standardization layer to the output 
+of the  nonlinearity, which results in sparser activations. 
+In our large-scale image classification experiments, we have not
+observed the nonlinearity inputs to be sparse, neither with
+nor without Batch Normalization.
+> 반대로, 표준화 레이어를 비선형성의 출력에 적용하면 희소 활성화가 발생한다.
+> 대규모 이미지 분류 실험에서 배치 정규화가 있든 없든 비선형성 입력이
+> 희소하다는 것을 관찰하지 못했다.
+
+Other notable differentiating
+characteristics of Batch Normalization include
+the learned scale and shift that allow the BN transform
+to represent identity (the standardization layer did not require
+this since it was followed by the learned linear transform
+that, conceptually, absorbs the necessary scale and
+shift), handling of convolutional layers, deterministic inference
+that does not depend on themini-batch, and batch-normalizing
+each convolutional layer in the network.
+> 배치 정규화의 다른 주목할 만한 차별화 특성은 다음과 같다.
+> BN 변환을 통해 정체성을 나타낼 수 있는 학습된 규모와 이동
+> (표준화 계층은 개념적으로 필요한 규모와 이동을 흡수하는 학습된 선형 변환이 뒤따르기 
+> 때문에 필요하지 않았다), 컨볼루션 계층의 처리, 미니 배치에 의존하지 않는
+> 결정론적 추론 및 배치 없음네트워크의 각 컨볼루션 레이어를 정규화합니다.
+
+In this work, we have not explored the full range of
+possibilities that Batch Normalization potentially enables.
+Our future work includes applications of our method to
+Recurrent Neural Networks (Pascanu et al., 2013), where
+the internal covariate shift and the vanishing or exploding
+gradients may be especially severe, and which would allow
+us to more thoroughly test the hypothesis that normalization
+improves gradient propagation (Sec. 3.3).
+> 본 연구에서는 배치 정규화가 잠재적으로 가능하게 할 수 있는 모든 범위의 가능성을
+> 탐구하지 않았다. 우리의 향후 연구는 내부 공변량 이동과 소멸 또는 폭발 기울기가
+> 특히 심할 수 있는 순환 신경망에 대한 우리의 방법의 적용을 포함하며,
+> 이를 통해 정규화가 기울기 전파를 개선한다는 가설을 더
+> 철저히 테스트할 수 있다(3.3항).
