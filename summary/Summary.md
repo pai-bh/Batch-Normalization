@@ -1,99 +1,158 @@
 ## 1. 구현 Summary
-
-### 1.1 ImageNet Implementation
-
-#### Architecture
-
-![table1](../pics/table1.png)
-
-**Table 1.** 이미지넷을 위한 아키텍처. 구축된 블락들은 쌓이는 블락의 갯수와 함께 대괄호로 묶여 있습니다. Down sampling은 conv3_1, conv4_1, conv5_1 에서 stride 값을 2로 주며 진행되었습니다.
-
-#### Augmentation
-
-- Scale augmentation을 위해 이미지는 짧은 쪽이 [256, 480]사이의 랜덤한 값을 갖도록 resize
-- 이미지와 이를 수평으로 뒤집은 이미지에 대해 224X224 random crop이 진행되고 각 픽셀별 평균을 빼주기
-- 기본적인 color augmentation
-
-#### Implementation detail
-
-| Implementation | Detail |
-| ------------------ | ------------------------------------------------- |
-| Batchnorm          | 각 convolution 이후, 활성화 함수 적용 이전에 진행 |
-| Weight Initializer | He initializer                                    |
-| Batchsize          | 256                                               |
-| Optimizer          | SGD, momentum = 0.9                               |
-| Learning rate      | 0.1부터 시작하고 에러가 줄지 않을때 10씩 나눔     |
-| Weight decay | 0.0001 |
-
-### 1.2 CIFAR-10 Implementation
-
-#### Architecture
-
-모두 projection shortcuts가 아닌 identity shortcuts를 사용했습니다.  Downsampling은 stride 값을 2로 줌으로써 진행했습니다.
-
-n 을 {3, 5, 7, 9, 18, 200}로 설정해 20, 32, 44, 56, 110, 1202 레이어 네트워크로 비교
-
-![cifiar10-architecture](../pics/cifiar10-architecture.png)
-
-#### Augmentation
-
-- 각 사이드별로 4 픽셀씩 패딩을 진행하고 패딩된 이미지와 수평으로 flip된 이미지에서 32X32 random sample crop을 진행했습니다.
-- Testing 단계에서는 원본 32X32 이미지만을 사용했습니다.
-
-#### Implementation detail
-
-| Implementation     | Detail                                             |
-| ------------------ | -------------------------------------------------- |
-| Batchnorm          | 각 convolution 이후, 활성화 함수 적용 이전에 진행  |
-| Weight Initializer | He initializer                                     |
-| Batchsize          | 256                                                |
-| Optimizer          | SGD, momentum = 0.9                                |
-| Learning rate      | 0.1부터 시작하고 32K, 48k iteration 마다 10씩 나눔 |
-| Weight decay       | 0.0001                                             |
-| Train/Val split      | 45k / 5k |
+- 본 논문(BatchNormalization)은 Survey 논문으로, 구현 Summary는 작성하지 않음
 
 ## 2. 내용 Summary
+먼저, Batch-Normalization을 간단히 축약하여 말하자면, 각 Layer의 Input으로 들어오기 전에
 
-당시에 많은 연구들로부터 컨볼루션 네트워크의 깊이가 깊어지면 깊어질수록 추출할 수 있는 더 풍부한 feature를 추출할 수 있다는 점에서 네트워크의 "깊이"가 매우 중요해졌습니다.
+mini-batch 단위로 정규화를 진행하여, 학습속도도 가속시키며 학습하는 과정 자체를 전체적으로 안정화시킨다는 방안이다.
 
-깊이가 중요해짐에 따라, 하나의 의문이 생깁니다. 단순히 많은 레이어들을 쌓기만하면 더 좋은 네트워크를 구성할 수 있을까요?
+즉, Batch-Normalization 은 hidden Layer의 데이터들을 정규화 하는 방법이다.
 
-답은 아니오입니다. Vanishing/exploding gradient 현상으로 인해 네트워크의 시작부터 수렴이 잘 되지 않았습니다. 여기서 수렴은 올바른 방향으로의 학습을 의미합니다.
+해당 요약에서 정리할 내용은 다음과 같다. <br>
+> a. internal covariate shift <br>
+> b. Toward Reducing Internal Covariate Shift
+> c. Batch-Normalization 의 장점 및 효과 <br>
+> d. Normalization via Mini-Batch Statics <br>
 
-Vanishing/exploding 현상은 batch normalization이나 He initialization등의 노력을 통해 해결할 수 있게되었습니다. 위 문제를 해결하면서 네트워크가 수렴을 시작할 수 있게되었습니다.
+#### internal covariate shift (ICS)
+먼저, Covariate shift란, `공변량 변화`를 의미한다. 
 
-더 깊은 네트워크가 수렴을 시작할 수 있게 되었을때, "Degradation" 문제가 발생했습니다.
+본 논문에서는, 학습에서 불안정화가 일어나는 이유를 `Internal Covariance Shift` 라고 주장한다.
 
-일반적으로 층을 겹겹이 쌓아 구성하는 네트워크의 층을 더 깊게 쌓았더니 오히려 Training error가 더 높은, 즉 학습 부분에서의 저하(degradation)가 일어나는 현상을 Degradation problem이라고 합니다.
+이는 네트워크의 각 레이어나 Activation마다 입력값의 분산이 달라지는 현상을 뜻한다.
 
-![figure1](../pics/figure1.png)
+Layer를 통과할 때 마다, Covariate Shift(공변량 변화)가 일어나 아래 사진과 같이
 
-위 이미지의 왼쪽그림을 보면 56개의 레이어를 갖는 네트워크의 에러가 20개의 레이어를 갖는 네트워크의 에러보다 더 높은 것을 확인할 수 있습니다. 
+입력의 분포가 약간씩 변하는 현상을 의미한다. 본 논문에서는 해당 ICS를 줄이는 방법인
 
-이 문제를 해결하기 위해 ResNet 논문에서는 degradation 문제가 없는 깊은 네트워크를 구성하기 위해 "Redisual Network"라는 구조적인 솔루션을 제안합니다. 
+Batch-Normalization 방법론을 제시한 것이다.
 
-Residual Network에서는 일반적으로 평평하게 쌓인 레이어들에 Residual mapping을 추가해 학습을 진행합니다. 추가되는 매핑 파트는 Identity mapping으로 인풋값을 그대로 매핑합니다.
+![](../pics/sum_1.png)
 
-- Original mapping : $H(x)$ → $F(x) + x$
-- Residual mapping : $F(x) := H(x) - x$
+##### Toward Reducing Internal Covariate Shift
+Batch-Normalization의 궁극적인 목표는 ICS를 줄이는 것이다.
 
-만약 다수의 비선형 레이어들이 임의의 복잡한 함수에 점근적으로 근사할 수 있다고 가정했을때, 다수의 비선형 레이어들은 residual 함수에도 점근적으로 근사할 수 있을 것입니다
+본 논문에서는 `Whitening`을 통해 Layer의 입력의 고정된 분포를 만들고
 
-쌓여져있는 레이어들이 H(x)에 근사하도록 하는 것 대신에, ResNet에서는 레이어들이 residual 함수인 $F(x) := H(x) − x$ 에 근사하도록 했습니다.
+ICS를 줄이는 것을 목표로 하였다.
 
-ResNet에서는 일반적인 평평한 형태로 쌓인 레이어($$H(x)$$)보다 매핑의 결과와 Input의 차이를 계산하는 Residual 매핑($$F(x)$$)을 최적화하는게 더 쉽다고 가정했습니다.
+`Whitening` : 각 Layer의 입력의 분산을 평균0, 표준편차 1인 입력값으로 정규화 시키는 방법이다.
 
-![fig2](../pics/figure2.png)
+Whitening은 입력값들의 특징들은 decorrelated 하게 만들어준다는 특징을 갖고 있다.
 
-ResNet에서 수식 $F(x) + x$를 "shortcut connection"으로 구현했습니다.
+기존의 연구는 신경망의 parameter를 Activation의 값에 따라 바꾸면서 whitening하는 방식을 사용하는데
 
-Shortcut connections는 하나 또는 하나 이상의 레이어를 건너 뛰는 연결을 말합니다. Resnet의 경우, shortcut connections는 단순히 identity mapping을 수행하고, 그 아웃풋은 쌓여져 있는 레이어의 아웃풋에 더해집니다.
+whitening은 문제가 다수 존재한다.
 
-ResNet 논문에서는 위 Residual Network를 ImageNet 데이터셋과 CIFAR-10 데이터셋에서 다양한 변화를 주며 실험을 진행했습니다. 각 데이터셋에서 Residual mapping을 진행한 ResNet 네트워크와 VGG 형태처럼 단순히 쌓는 구조인 Plain 네트워크를 비교합니다.
+covariance matrix## 1. 구현 Summary
+- 본 논문(BatchNormalization)은 Survey 논문으로, 구현 Summary는 작성하지 않음
 
-ResNet 네트워크가 Plain 네트워크보다 훨씬 높은 성능을 보이고, Residual mapping을 진행한 경우 degradation 문제도 관측되지 않았습니다. 즉 ResNet은 깊이가 깊어질수록 더 높은 정확도의 모델을 얻는 것이 가능합니다.
+## 2. 내용 Summary
+먼저, Batch-Normalization을 간단히 축약하여 말하자면, 각 Layer의 Input으로 들어오기 전에
+
+mini-batch 단위로 정규화를 진행하여, 학습속도도 가속시키며 학습하는 과정 자체를 전체적으로 안정화시킨다는 방안이다.
+
+즉, Batch-Normalization 은 hidden Layer의 데이터들을 정규화 하는 방법이다.
+
+해당 요약에서 정리할 내용은 다음과 같다. <br>
+> a. internal covariate shift <br>
+> b. Toward Reducing Internal Covariate Shift
+> c. Normalization via Mini-Batch Statics <br>
+> d. Training and Inference with Batch-  Normalized Networks
+> e. Batch-Normalization 의 장점 및 효과 <br>
+
+#### internal covariate shift (ICS)
+먼저, Covariate shift란, `공변량 변화`를 의미한다. 
+
+본 논문에서는, 학습에서 불안정화가 일어나는 이유를 `Internal Covariance Shift` 라고 주장한다.
+
+이는 네트워크의 각 레이어나 Activation마다 입력값의 분산이 달라지는 현상을 뜻한다.
+
+Layer를 통과할 때 마다, Covariate Shift(공변량 변화)가 일어나 아래 사진과 같이
+
+입력의 분포가 약간씩 변하는 현상을 의미한다. 본 논문에서는 해당 ICS를 줄이는 방법인
+
+Batch-Normalization 방법론을 제시한 것이다.
+
+![](../pics/sum_1.png)
+
+---
+
+##### Toward Reducing Internal Covariate Shift
+Batch-Normalization의 궁극적인 목표는 ICS를 줄이는 것이다.
+
+본 논문에서는 `Whitening`을 통해 Layer의 입력의 고정된 분포를 만들고
+
+ICS를 줄이는 것을 목표로 하였다.
+
+`Whitening` : 각 Layer의 입력의 분산을 평균0, 표준편차 1인 입력값으로 정규화 시키는 방법이다.
+
+Whitening은 입력값들의 특징들은 decorrelated 하게 만들어준다는 특징을 갖고 있다.
+
+기존의 연구는 신경망의 parameter를 Activation의 값에 따라 바꾸면서 whitening하는 방식을 사용하는데
+
+whitening은 문제가 다수 존재한다.
+- covariance matrix를 매번 계산해야하는데, 이 것은 매우 expensive하다.
+- whitening을 진행하면, 일부 parameter들의 영향은 무시된다.
+
+위 whitening의 단점을 보완하며 Internal Convariance Shift를 줄이는 것이 Batchi-Normalization 논문의 핵심이다.
+
+---
+
+##### Normalization via Mini-Batch Statics
+| 방법론       | 특징                            |
+|-----------|-------------------------------|
+| Whitening | 평균과 분산을 조정하는 과정이 학습과는 별개로 진행됨 |
+| Batch정규화  | 신경망 안에 포함되어, 학습 시 평균과 분산을 조정  |
+
+Whitening과 배치정규화의 가장 큰 차이점은 위와 같다.
+
+__각 레이어마다 정규화를 하는 Layer를 두어, 변형된 분포가 나오지 않도록 조절하는 것이 배치정규화이다.__
+
+미니배치단위로 학습되는 알고리즘은 아래와 같다.
+
+| 변수    | 역할    |
+|-------|-------|
+| 감마(γ) | scale |
+| 베타(β) | shift |
 
 
+![](../pics/sum_2.png)
 
+배치 정규화는 간단히 말하자면 미니배치의 평균과 분산을 이용해서 정규화 한 뒤에,
+scale 및 shift 를 감마(γ) 값, 베타(β) 값을 통해 실행한다.
+이 때 감마와 베타 값은 학습 가능한 변수이다. 즉, Backpropagation을 통해서 학습이 된다.
+> ※ 감마와 베타를 통해 비선형 성질을 유지하면서 학습이 가능하다.
 
+![](../pics/bn3_math7.png)
+위는 감마와 베타를 구하기 위한 Backpropogation 수식이다.
 
+이렇게 정규화 된 값을 활성화 함수의 입력으로 사용하고, 
+최종 출력 값을 다음 레이어의 입력으로 사용하는 것이다.
+
+##### Training and Inference with Batch-  Normalized Networks
+학습 시에는 배치 정규화의 미니배치의 평균과 분산을 이용할 순 있지만, 추론(inference)및 테스트 단계에서는 활용할 수 없다.
+
+배치정규화가 바라는 것은 모델이 추정한 입력 데이터 분포의 평균과 분산으로 정규화를 하고자 하는 것인데
+
+inference를 위해서 다시금 정규화를 시켜주는 것은 무의미한 일이다.
+
+그래서, 즉, inference 에서는 결과를 Deterministic 하게 하기 위하여
+고정된 평균과, 분산을 이용하여 정규화를 수행하게 된다.
+
+그렇기 때문에 Train모드와 Test모드를 따로 둔다.
+
+이때 우리는 미리 저장해준 미니 배치의 `이동평균(moving averasing)`을 사용한다.
+
+즉, inference를 위해서는 학습 단계에서 미리 미니배치를 뽑을 때 
+Sample Mean 및 Sample Variance를 이용하여 각각의 이동평균을 구해야 한다.
+
+![](../pics/sum_3.png)
+
+#####  Batch-Normalization 의 장점 및 효과
+- 배치정규화가 신경망 레이어의 중간중간에 위치하여 학습을 통해 감마와 베타를 구할 수 있음
+- Internal Covariate shift문제로 인해 신경망이 깊어질 경우 학습이 어려웠떤 문제 해결
+- gradient의 스케일과 초기값에 대한 dependency가 줄어들었음
+  - 이로 인해, 높은 Learning Rate를 설정하거나 gradeint가 Vanish/expolce 현상 잦아듦
+  - 또한 위 이유로 인해 학습속도 또한 상당히 빨라짐
+- 배치정규화 자체적으로 regularization 효과가 있어 dropout의 기능또한 충분히 수행해
