@@ -43,12 +43,44 @@ Scale Factor : 감마(γ) Shift Factor : 베타(β)	를 별도로 구성합니�
 
 
 ---
-#####  &#10004; Batch-Normalization 의 장점 및 효과
+### 실험
+(1) MNIAT dataset :  - 간단한 레이어로 구성된 모델로 실험
+
+![](./pics/bn_exper1.png)
+
+미니 배치당 60개의 sample을 활용하여 50000 step 학습 한 결과 위와 같음.
+
+- 더 빠른 속도로 높은 성능에 수렴하는 것을 보인다.
+- 배치정규화된 네트워크가 정확도가 높다.
+- 원래의 네트워크(b)에 비해 배치정규화를 적용한 (c)의 분포가 훨씬 더 안정적이다.
+  - 이는 학습이 진행될수록 더 좋은 결과를 초래한다.
+
+---
+  
+(2) ImageNet classification
+
+![](./pics/bn4_2.png)
+
+|model| description |
+|---|-------------|
+|Inception|Inception Network 베이스라인 모델이다. Learning Rate는 0.0015|
+|BN-Baseline|위의 Inception과 동일하지만 Nonlinearity에 들어가기 전에 Batch Normalization을 적용한 모델|
+|BN-x5|위의 베이스라인 모델과 같지만 Learning Rate를 5배인 0.0075를 사용한 모델|
+|BN-x30|마찬가지로 Learning Rate를 30배로 사용한 모델|
+|BN-x5-Sigmoid|BN-x5와 동일하지만 Nonlinearity를 ReLU 대신 Sigmoid를 사용한 모델|
+
+위는 다음과 같은 5개의 모델을 비교해본 것이다.
+
+> __결론은, 배치정규화를 사용하면 Learning Rate가 높아도 수렴도 빨라지며, 성능또한 보장이 된다는 것이다.__
+
+
+### Batch-Normalization 의 장점 및 효과
 - Internal Covariate shift문제로 인해 신경망이 깊어질 경우 학습이 어려웠던 문제 해결
 - gradient의 스케일과 초기값에 대한 dependency가 줄어들었음
   - 이로 인해, 높은 Learning Rate를 설정하거나 gradeint가 Vanish/expolce 현상 잦아듦
   - 또한 위 이유로 인해 학습속도 또한 상당히 빨라짐
 - 배치정규화 자체적으로 regularization 효과가 있어 dropout의 기능또한 충분히 수행함
+
 
 
 ### 개정 내역
