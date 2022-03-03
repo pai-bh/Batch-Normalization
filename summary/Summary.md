@@ -154,7 +154,37 @@ inference를 위해서 다시금 정규화를 시켜주는 것은 무의미한 �
 즉, inference를 위해서는 학습 단계에서 미리 미니배치를 뽑을 때 
 Sample Mean 및 Sample Variance를 이용하여 각각의 이동평균을 구해야 한다.
 
-![](./pics/readme_png1.png)
+![](../pics/readme_png1.png)
+
+### 실험
+(1) MNIAT dataset :  - 간단한 레이어로 구성된 모델로 실험
+
+![](../pics/bn_exper1.png)
+
+미니 배치당 60개의 sample을 활용하여 50000 step 학습 한 결과 위와 같음.
+
+- 더 빠른 속도로 높은 성능에 수렴하는 것을 보인다.
+- 배치정규화된 네트워크가 정확도가 높다.
+- 원래의 네트워크(b)에 비해 배치정규화를 적용한 (c)의 분포가 훨씬 더 안정적이다.
+  - 이는 학습이 진행될수록 더 좋은 결과를 초래한다.
+
+---
+  
+(2) ImageNet classification
+
+![](../pics/bn4_2.png)
+
+|model| description |
+|---|-------------|
+|Inception|Inception Network 베이스라인 모델이다. Learning Rate는 0.0015|
+|BN-Baseline|위의 Inception과 동일하지만 Nonlinearity에 들어가기 전에 Batch Normalization을 적용한 모델|
+|BN-x5|위의 베이스라인 모델과 같지만 Learning Rate를 5배인 0.0075를 사용한 모델|
+|BN-x30|마찬가지로 Learning Rate를 30배로 사용한 모델|
+|BN-x5-Sigmoid|BN-x5와 동일하지만 Nonlinearity를 ReLU 대신 Sigmoid를 사용한 모델|
+
+위는 다음과 같은 5개의 모델을 비교해본 것이다.
+
+> __결론은, 배치정규화를 사용하면 Learning Rate가 높아도 수렴도 빨라지며, 성능또한 보장이 된다는 것이다.__
 
 #####  Batch-Normalization 의 장점 및 효과
 - 배치정규화가 신경망 레이어의 중간중간에 위치하여 학습을 통해 감마와 베타를 구할 수 있음
